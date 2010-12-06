@@ -51,4 +51,35 @@ public class TestProtoToPig {
       assertEquals(protoTuple.get(fd.getIndex()), normalTuple.get(fd.getIndex()));
     }
   }
+ 
+  @Test
+  public void testRequiredColumnIndexes() throws ExecException{
+	  Person personProto = Fixtures.buildPersonProto();
+	  
+	  Tuple protoTuple = new ProtobufTuple(personProto);
+	  
+	  int testIndices[] = new int[]{1,3};
+	  Object[] assertValues = new Object[testIndices.length];
+	  int index=0;
+	  
+	  for(int i : testIndices){
+		  assertValues[index++] = protoTuple.get(i);
+	  }
+	  
+	  //the tuple has columns 
+	  //{0..3} 
+	  // 0 Elephant Bird
+	  // 1 123
+	  // 2 elephant@bird.com
+	  // 3 {(415-999-9999,HOME),(415-666-6666,MOBILE),(415-333-3333,WORK)}
+	  //test with required columns 1 and 3
+	  
+	  Tuple prunedProtoTuple = new ProtobufTuple(personProto, testIndices);
+	  
+	  for(int i = 0; i < prunedProtoTuple.size(); i++){
+		  assertEquals(assertValues[i], prunedProtoTuple.get(i));
+	  }
+	  
+  }
+  
 }
