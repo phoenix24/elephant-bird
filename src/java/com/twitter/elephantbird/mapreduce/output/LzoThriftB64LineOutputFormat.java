@@ -1,50 +1,42 @@
 package com.twitter.elephantbird.mapreduce.output;
 
-import java.io.DataOutputStream;
 import java.io.IOException;
 
-import com.hadoop.compression.lzo.LzopCodec;
-import com.twitter.elephantbird.mapreduce.io.ThriftB64LineWritable;
+import com.twitter.elephantbird.mapreduce.io.ThriftConverter;
+import com.twitter.elephantbird.mapreduce.io.ThriftWritable;
+import com.twitter.elephantbird.util.ThriftUtils;
 import com.twitter.elephantbird.util.TypeRef;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.apache.thrift.TBase;
 
 /**
- * This is the output format class for base64 encoded, line-oriented thrift based formats. Data is
- * written as one base64 encoded serialized thrift object per line. It takes one template parameter, the 
- * thrift type. This parameter is saved in a TypeRef for use in the getRecordWriter factory method.
+ * Data is written as one base64 encoded serialized thrift per line. <br><br>
+ *
+ * Do not use LzoThriftB64LineOutputFormat.class directly for setting
+ * OutputFormat class for a job. Use getOutputFormatClass() instead.
  */
-public class LzoThriftB64LineOutputFormat<T extends TBase>
-    extends FileOutputFormat<NullWritable, ThriftB64LineWritable<T>> {
-  private static final Logger LOG = LogManager.getLogger(LzoThriftB64LineOutputFormat.class);
+public class LzoThriftB64LineOutputFormat<M extends TBase<?>>
+    extends LzoOutputFormat<M, ThriftWritable<M>> {
 
-  protected TypeRef<T> typeRef_;
+  public LzoThriftB64LineOutputFormat() {}
 
-  protected void setTypeRef(TypeRef<T> typeRef) {
-    typeRef_ = typeRef;
+  @SuppressWarnings("unchecked")
+  public static <M extends TBase<?>> Class<LzoThriftB64LineOutputFormat>
+     getOutputFormatClass(Class<M> thriftClass, Configuration jobConf) {
+
+    ThriftUtils.setClassConf(jobConf, LzoThriftB64LineOutputFormat.class, thriftClass);
+    return LzoThriftB64LineOutputFormat.class;
   }
 
-  public RecordWriter getRecordWriter(TaskAttemptContext job)
+  @Override
+  public RecordWriter<NullWritable, ThriftWritable<M>> getRecordWriter(TaskAttemptContext job)
       throws IOException, InterruptedException {
-    Configuration conf = job.getConfiguration();
-    LzopCodec codec = new LzopCodec();
-    codec.setConf(conf);
 
-    Path file = getDefaultWorkFile(job, codec.getDefaultExtension());
-    FileSystem fs = file.getFileSystem(conf);
-    FSDataOutputStream fileOut = fs.create(file, false);
-
-    return new LzoThriftB64LineRecordWriter<T>(typeRef_,
-            new DataOutputStream(codec.createOutputStream(fileOut)));
+    TypeRef<M> typeRef = ThriftUtils.getTypeRef(job.getConfiguration(), LzoThriftB64LineOutputFormat.class);
+    return new LzoBinaryB64LineRecordWriter<M, ThriftWritable<M>>(new ThriftConverter<M>(typeRef), getOutputStream(job));
   }
 }

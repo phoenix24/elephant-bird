@@ -2,45 +2,59 @@ package com.twitter.elephantbird.mapreduce.input;
 
 import java.io.IOException;
 
-import com.twitter.elephantbird.mapreduce.input.LzoInputFormat;
-import com.twitter.elephantbird.mapreduce.io.ThriftB64LineWritable;
-import com.twitter.elephantbird.util.TypeRef;
-
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.thrift.TBase;
 
+import com.twitter.elephantbird.mapreduce.io.ThriftWritable;
+import com.twitter.elephantbird.util.ThriftUtils;
+import com.twitter.elephantbird.util.TypeRef;
+
 /**
- * This is the base class for all base64 encoded, line-oriented thrift based input formats.
- * Data is expected to be one base64 encoded serialized thrift message per line. It has two template
- * parameters, the thrift type and the thrift writable for that type.  This class cannot be instantiated
- * directly as an input format because Hadoop works via reflection, and Java type erasure makes it
- * impossible to instantiate a templatized class via reflection with the correct template parameter.
- * Instead, we codegen derived input format classes for any given thrift object which instantiate the
- * template parameter directly, as well as set the typeRef argument so that the template
- * parameter can be remembered. 
+ * Reads line from an lzo compressed text file, base64 decodes it, and then
+ * deserializes that into the Thrift object.
+ * Returns <position, thriftObject> pairs. <br><br>
+ *
+ * Do not use LzoThriftB64LineInputFormat.class directly for setting
+ * InputFormat class for a job. Use getInputFormatClass() instead.
  */
+public class LzoThriftB64LineInputFormat<M extends TBase<?>>
+                extends LzoInputFormat<LongWritable, ThriftWritable<M>> {
 
-public class LzoThriftB64LineInputFormat <T extends TBase, W extends ThriftB64LineWritable<T>> extends LzoInputFormat<LongWritable, W> {
-  private TypeRef<T> typeRef_;
-  private W thriftWritable_;
+  TypeRef<M> typeRef_ = null;
 
-  public LzoThriftB64LineInputFormat() {
-  }
+  public LzoThriftB64LineInputFormat() {}
 
-  protected void setTypeRef(TypeRef<T> typeRef) {
+  public LzoThriftB64LineInputFormat(TypeRef<M> typeRef) {
     typeRef_ = typeRef;
   }
 
-  protected void setThriftWritable(W thriftWritable) {
-    thriftWritable_ = thriftWritable;
+  /**
+   * Returns {@link LzoThriftB64LineInputFormat} class for setting up a job.
+   * Sets an internal configuration in jobConf so that Task instantiates
+   * appropriate object for this generic class based on thriftClass
+   */
+  @SuppressWarnings("unchecked")
+  public static <M extends TBase<?>> Class<LzoThriftB64LineInputFormat>
+     getInputFormatClass(Class<M> thriftClass, Configuration jobConf) {
+    ThriftUtils.setClassConf(jobConf, LzoThriftB64LineInputFormat.class, thriftClass);
+    return LzoThriftB64LineInputFormat.class;
+  }
+
+  public static<M extends TBase<?>> LzoThriftB64LineInputFormat<M> newInstance(TypeRef<M> typeRef) {
+    return new LzoThriftB64LineInputFormat<M>(typeRef);
   }
 
   @Override
-  public RecordReader<LongWritable, W> createRecordReader(InputSplit split,
+  public RecordReader<LongWritable, ThriftWritable<M>> createRecordReader(InputSplit split,
       TaskAttemptContext taskAttempt) throws IOException, InterruptedException {
-    return new LzoThriftB64LineRecordReader<T, W>(typeRef_, thriftWritable_);
+    if (typeRef_ == null) {
+      typeRef_ = ThriftUtils.getTypeRef(taskAttempt.getConfiguration(), LzoThriftB64LineInputFormat.class);
+    }
+    return new LzoThriftB64LineRecordReader<M>(typeRef_);
   }
+
 }
