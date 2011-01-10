@@ -33,6 +33,7 @@ public class LzoPigStorage extends PigStorage {
 		return new LzoTextInputFormat();
 	}
 
+	
 	@Override
 	public void setStoreLocation(String location, Job job) throws IOException {
 		job.getConfiguration().set("mapred.textoutputformat.separator", "");
@@ -40,5 +41,6 @@ public class LzoPigStorage extends PigStorage {
 		FileOutputFormat.setCompressOutput(job, true);
 		FileOutputFormat.setOutputCompressorClass(job, LzopCodec.class);
 	}
+
 
 }
