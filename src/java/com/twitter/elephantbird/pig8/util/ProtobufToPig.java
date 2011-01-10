@@ -10,7 +10,6 @@ import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
-import com.sun.org.apache.xerces.internal.impl.dv.xs.SchemaDateTimeException;
 import com.twitter.data.proto.Misc.CountedMap;
 import org.apache.pig.backend.executionengine.ExecException;
 import org.apache.pig.data.BagFactory;

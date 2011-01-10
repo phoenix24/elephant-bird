@@ -6,7 +6,6 @@ import java.util.List;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.OutputFormat;
@@ -25,14 +24,14 @@ import org.apache.pig.impl.logicalLayer.FrontendException;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.apache.pig.impl.util.UDFContext;
 
-import com.google.common.base.Function;
 import com.google.protobuf.Message;
 import com.hadoop.compression.lzo.LzopCodec;
-import com.twitter.elephantbird.mapreduce.input.LzoTextInputFormat;
-import com.twitter.elephantbird.pig.util.PigCounterHelper;
-import com.twitter.elephantbird.pig.util.ProtobufToPig;
-import com.twitter.elephantbird.pig.util.ProtobufTuple;
+import com.twitter.elephantbird.mapreduce.input.LzoProtobufB64LineInputFormat;
+import com.twitter.elephantbird.pig8.util.PigCounterHelper;
+import com.twitter.elephantbird.pig8.util.ProtobufToPig;
+import com.twitter.elephantbird.pig8.util.ProtobufTuple;
 import com.twitter.elephantbird.util.Protobufs;
+import com.twitter.elephantbird.util.TypeRef;
 
 /**
  * 
@@ -64,7 +63,6 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 
 	String clsMapping;
 
-	private Function<byte[], ? extends Message> protoConverter;
 	private final Base64 base64 = new Base64();
 	private final ProtobufToPig protoToPig = new ProtobufToPig();
 
@@ -75,7 +73,8 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 	PigCounterHelper counterHelper = new PigCounterHelper();
 
 	private String signature;
-
+	private TypeRef<? extends Message> typeRef;
+	
 	protected enum LzoProtobuffB64LinePigStoreCounts {
 		LinesRead, ProtobufsRead
 	}
@@ -90,10 +89,10 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 		return new LzoProtobufB64LineOutputFormat(clsMapping);
 	}
 
-	@SuppressWarnings("rawtypes")
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public InputFormat getInputFormat() {
-		return new LzoTextInputFormat();
+		return new LzoProtobufB64LineInputFormat(typeRef);
 	}
 
 	@Override
@@ -104,6 +103,9 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 		FileOutputFormat.setOutputPath(job, new Path(location));
 		FileOutputFormat.setCompressOutput(job, true);
 		FileOutputFormat.setOutputCompressorClass(job, LzopCodec.class);
+		
+		Class<? extends Message> protoClass = ProtobufClassUtil.loadProtoClass(clsMapping, job.getConfiguration());
+		typeRef = Protobufs.getTypeRef(protoClass.getName());
 	}
 
 	/**
@@ -141,16 +143,19 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 
 			// READ the ProtoBuff Value (String => Decode => Parse => Message =>
 			// Tuple)
-			Text value = (Text) in.getCurrentValue();
-
-			// incrCounter(LzoProtobuffB64LinePigStoreCounts.LinesRead, 1L);
-
-			Message protoValue = protoConverter.apply(base64.decode(value
-					.toString().getBytes("UTF-8")));
-
-			if (protoValue == null) {
-				throw new RuntimeException("Error converting line to protobuff");
-			}
+			Message protoValue = (Message) in.getCurrentValue();
+//
+//			// incrCounter(LzoProtobuffB64LinePigStoreCounts.LinesRead, 1L);
+//			//  byte[] lineBytes = line_.toString().getBytes("UTF-8");
+//			//	      M protoValue = converter_.fromBytes(base64_.decode(lineBytes));
+//			//
+//			
+//			Message protoValue = protoConverter.apply(base64.decode(value
+//					.toString().getBytes("UTF-8")));
+//
+//			if (protoValue == null) {
+//				throw new RuntimeException("Error converting line to protobuff");
+//			}
 
 			return new ProtobufTuple(protoValue, requiredIndices);
 
@@ -172,8 +177,9 @@ public class LzoProtobuffB64LinePigStore extends PigStorage implements
 	public void prepareToRead(RecordReader reader, PigSplit split) {
 		super.prepareToRead(reader, split);
 
-		protoConverter = Protobufs.getProtoConverter(ProtobufClassUtil
-				.loadProtoClass(clsMapping, split.getConf()));
+		
+//		protoConverter = Protobufs.getProtoConverter(ProtobufClassUtil
+//				.loadProtoClass(clsMapping, split.getConf()));
 	
 	}
 

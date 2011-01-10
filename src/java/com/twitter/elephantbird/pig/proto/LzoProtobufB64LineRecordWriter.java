@@ -17,7 +17,7 @@ import org.apache.pig.data.Tuple;
 import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
 import com.hadoop.compression.lzo.LzopCodec;
-import com.twitter.elephantbird.pig.util.PigToProtobuf;
+import com.twitter.elephantbird.pig8.util.PigToProtobuf;
 import com.twitter.elephantbird.util.Protobufs;
 
 /**
