@@ -10,7 +10,7 @@ import org.apache.thrift.TDeserializer;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
-import com.twitter.elephantbird.pig.piggybank.ThriftToPig;
+import com.twitter.elephantbird.pig8.util.ThriftToPig;
 import com.twitter.elephantbird.util.TypeRef;
 
 /**
@@ -27,7 +27,7 @@ import com.twitter.elephantbird.util.TypeRef;
  * }}
  *</pre>
  */
-public abstract class BytesToThriftTuple<T extends TBase<?>> extends EvalFunc<Tuple> {
+public abstract class BytesToThriftTuple<T extends TBase<?, ?>> extends EvalFunc<Tuple> {
 
   private final TDeserializer deserializer_ = new TDeserializer(new TBinaryProtocol.Factory());
   private ThriftToPig<T> thriftToTuple_;
