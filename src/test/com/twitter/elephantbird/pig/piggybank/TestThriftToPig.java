@@ -24,7 +24,8 @@ import com.twitter.data.proto.tutorial.thrift.Person;
 import com.twitter.data.proto.tutorial.thrift.PhoneNumber;
 import com.twitter.data.proto.tutorial.thrift.PhoneType;
 import com.twitter.elephantbird.mapreduce.io.ThriftConverter;
-import com.twitter.elephantbird.pig.util.ThriftToPig;
+import com.twitter.elephantbird.pig8.util.ThriftToPig;
+import com.twitter.elephantbird.pig8.util.PigToThrift;
 import com.twitter.elephantbird.util.TypeRef;
 
 public class TestThriftToPig {
@@ -34,12 +35,17 @@ public class TestThriftToPig {
   private static enum TestType {
     THRIFT_TO_PIG,
     BYTES_TO_TUPLE,
+    TUPLE_TO_THRIFT,
   }
 
   static <M extends TBase<?, ?>> Tuple thriftToPig(M obj) throws TException {
     // it is very inefficient to create one ThriftToPig for each Thrift object,
     // but good enough for unit testing.
     return ThriftToPig.newInstance(new TypeRef<M>(obj.getClass()){}).getPigTuple(obj);
+  }
+
+  static <M extends TBase<?, ?>> Tuple thriftToLazyTuple(M obj) throws TException {
+    return ThriftToPig.newInstance(new TypeRef<M>(obj.getClass()){}).getLazyTuple(obj);
   }
 
   static <M extends TBase<?, ?>> Tuple bytesToTuple(M obj)
@@ -54,25 +60,33 @@ public class TestThriftToPig {
     return tTuple.exec(tuple);
   }
 
+  static <M extends TBase<?, ?>> Tuple pigToThrift(M obj) throws TException {
+    // Test PigToThrift using the tuple returned by thriftToPig.
+    // also use LazyTuple
+    Tuple t = thriftToLazyTuple(obj);
+    PigToThrift<M> p2t = PigToThrift.newInstance(new TypeRef<M>(obj.getClass()){});
+    assertEquals(obj, p2t.getThriftObject(t));
+    return t;
+  }
+
   static <M extends TBase<?, ?>> Tuple toTuple(TestType type, M obj) throws Exception {
     switch (type) {
     case THRIFT_TO_PIG:
       return thriftToPig(obj);
     case BYTES_TO_TUPLE:
       return bytesToTuple(obj);
+    case TUPLE_TO_THRIFT:
+      return pigToThrift(obj);
     default:
       return null;
     }
   }
 
   @Test
-  public void testThriftToPig() throws Exception {
+  public void test() throws Exception {
     tupleTest(TestType.THRIFT_TO_PIG);
-  }
-
-  @Test
-  public void testBytesToTuple() throws Exception {
     tupleTest(TestType.BYTES_TO_TUPLE);
+    tupleTest(TestType.TUPLE_TO_THRIFT);
   }
 
   private void tupleTest(TestType type) throws Exception {
@@ -84,15 +98,15 @@ public class TestThriftToPig {
     HolyMoley hm = hmConverter.fromBytes(hmConverter.toBytes(Fixtures.holyMoley));
 
     assertEquals(
-        "1-0-35-27000-16777216-6000000000-3.141592653589793-JSON THIS! \"-"+ooe.zomg_unicode+"-0-base64-{(1),(2),(3)}-{(1),(2),(3)}-{(1L),(2L),(3L)}",
+        "1-0-35-27000-16777216-6000000000-3.141592653589793-JSON THIS! \"-"+ooe.zomg_unicode+"-0-base64-{(1),(2),(3)}-{(1),(2),(3)}-{(1),(2),(3)}",
         toTuple(type, ooe).toDelimitedString("-"));
 
-    assertEquals("(31337,I am a bonk... xor!)-(1,0,35,27000,16777216,6000000000L,3.141592653589793,JSON THIS! \","+n.my_ooe.zomg_unicode+",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1L),(2L),(3L)})",
+    assertEquals("(31337,I am a bonk... xor!)-(1,0,35,27000,16777216,6000000000,3.141592653589793,JSON THIS! \","+n.my_ooe.zomg_unicode+",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1),(2),(3)})",
         toTuple(type, n).toDelimitedString("-"));
 
-    assertEquals("{(1,0,34,27000,16777216,6000000000L,3.141592653589793,JSON THIS! \"," + ooe.zomg_unicode +
-        ",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1L),(2L),(3L)}),(1,0,35,27000,16777216,6000000000L,3.141592653589793,JSON THIS! \"," +
-        ooe.zomg_unicode + ",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1L),(2L),(3L)})}-{({}),({(and a one),(and a two)}),({(then a one, two),(three!),(FOUR!!)})}-{zero={}, three={}, two={(1,Wait.),(2,What?)}}",
+    assertEquals("{(1,0,34,27000,16777216,6000000000,3.141592653589793,JSON THIS! \"," + ooe.zomg_unicode +
+        ",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1),(2),(3)}),(1,0,35,27000,16777216,6000000000,3.141592653589793,JSON THIS! \"," +
+        ooe.zomg_unicode + ",0,base64,{(1),(2),(3)},{(1),(2),(3)},{(1),(2),(3)})}-{({}),({(and a one),(and a two)}),({(then a one, two),(three!),(FOUR!!)})}-{zero={}, three={}, two={(1,Wait.),(2,What?)}}",
         (toTuple(type, hm).toDelimitedString("-")));
 
     // Test null fields. Pick the fields that have defaults of null
@@ -101,13 +115,13 @@ public class TestThriftToPig {
     mostly_ooe.setBase64((ByteBuffer)null);
     mostly_ooe.setZomg_unicode(null);
     assertEquals(
-        "1-0-35-27000-16777216-6000000000-3.141592653589793-JSON THIS! \"--0--{(1),(2),(3)}-{(1),(2),(3)}-{(1L),(2L),(3L)}",
+        "1-0-35-27000-16777216-6000000000-3.141592653589793-JSON THIS! \"--0--{(1),(2),(3)}-{(1),(2),(3)}-{(1),(2),(3)}",
         toTuple(type, mostly_ooe).toDelimitedString("-"));
 
     Nesting n2 = new Nesting(n);
     n2.getMy_bonk().setMessage(null);
     n2.setMy_ooe(mostly_ooe);
-    assertEquals("(31337,)-(1,0,35,27000,16777216,6000000000L,3.141592653589793,JSON THIS! \",,0,,{(1),(2),(3)},{(1),(2),(3)},{(1L),(2L),(3L)})",
+    assertEquals("(31337,)-(1,0,35,27000,16777216,6000000000,3.141592653589793,JSON THIS! \",,0,,{(1),(2),(3)},{(1),(2),(3)},{(1),(2),(3)})",
         toTuple(type, n2).toDelimitedString("-"));
 
     // test enum.

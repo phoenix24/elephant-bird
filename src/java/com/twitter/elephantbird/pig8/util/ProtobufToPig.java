@@ -131,7 +131,7 @@ public class ProtobufToPig {
    * @throws ExecException if Pig decides to.  Shouldn't happen because we won't walk off the end of a tuple's field set.
    */
   @SuppressWarnings("unchecked")
-  protected Object singleFieldToTuple(FieldDescriptor fieldDescriptor, Object fieldValue) throws ExecException {
+  protected Object singleFieldToTuple(FieldDescriptor fieldDescriptor, Object fieldValue) {
     assert fieldDescriptor.getType() != FieldDescriptor.Type.MESSAGE : "messageToFieldSchema called with field of type " + fieldDescriptor.getType();
 
     if (fieldDescriptor.isRepeated()) {
@@ -143,7 +143,11 @@ public class ProtobufToPig {
       for (Object singleFieldValue : fieldValueList) {
         Object nonEnumFieldValue = coerceToPigTypes(fieldDescriptor, singleFieldValue);
         Tuple innerTuple = tupleFactory_.newTuple(1);
-        innerTuple.set(0, nonEnumFieldValue);
+        try {
+          innerTuple.set(0, nonEnumFieldValue);
+        } catch (ExecException e) { // not expected
+          throw new RuntimeException(e);
+        }
         bag.add(innerTuple);
       }
       return bag;
@@ -448,5 +452,5 @@ public class ProtobufToPig {
       sb.append("  ");
     }
     return sb;
-  }  
+  }
 }
