@@ -148,7 +148,7 @@
         <fail message="Thrift 0.5.x required for thrift support. The local version is '${thrift.version.string}'">
           <condition> 
             <not> 
-              <contains string="${thrift.version.string}" substring="Thrift version 0.5."/>
+              <contains string="${thrift.version.string}" substring="Thrift version 0.7.0-dev"/>
             </not>
           </condition>
         </fail>
